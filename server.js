@@ -17,7 +17,7 @@ app.get('/location', handleLocation);
 
 app.get('/weather', handleWeather)
 
-app.get('/park', handleParks);
+app.get('/parks', handleParks);
 
 // app.use('*', noExist);
 // app.use(errorHandler);
@@ -38,9 +38,9 @@ function handleParks (request, response) {
       let url = element.url;
       let name = element.fullName;
       let description = element.description;
-      let fees = '0.0';
+      let fee = '0.0';
       let address = element.addresses[0].line1 + ', ' + element.addresses[0].city + ', ' + element.addresses[0].stateCode + ' ' + element.addresses[0].postalCode;
-      new Park(name, address, fees, description, url);
+      new Park(name, address, fee, description, url);
 
     });
     response.send(allArr);
@@ -49,10 +49,10 @@ function handleParks (request, response) {
 }
 
 let allArr = [];
-function Park(name,address,fees,description,url){
+function Park(name,address,fee,description,url){
   this.name = name;
   this.address = address;
-  this.fee = this.fees;
+  this.fee = this.fee;
   this.description = description;
   this.url = url;
   allArr.push(this);
