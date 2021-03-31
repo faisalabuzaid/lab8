@@ -1,15 +1,14 @@
 'use strict';
 
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const pg = require('pg');
 const superagent = require('superagent');
-
 const PORT = process.env.PORT;
 const app = express();
 
-app.use(cors());
 
 const client = new pg.Client(process.env.DATABASE_URL);
 client.on('error', err => console.log("PG PROBLEM!!!") );
@@ -20,14 +19,14 @@ app.get('/weather', handleWeather)
 
 app.get('/park', handleParks);
 
-app.use('*', noExist);
-app.use(errorHandler);
-function noExist(request, response) {
-  response.status(404).send('Error 404, Page Not Found!');
-}
-function errorHandler(err, request, response) {
-  response.status(500).send('Error 500, Server Internal Error');
-}
+// app.use('*', noExist);
+// app.use(errorHandler);
+// function noExist(request, response) {
+//   response.status(404).send('Error 404, Page Not Found!');
+// }
+// function errorHandler(err, request, response) {
+//   response.status(500).send('Error 500, Server Internal Error');
+// }
 
 function handleParks (request, response) {
   let key = process.env.PARK_API_KEY;
@@ -41,7 +40,7 @@ function handleParks (request, response) {
       let description = element.description;
       let fees = '0.0';
       let address = element.addresses[0].line1 + ', ' + element.addresses[0].city + ', ' + element.addresses[0].stateCode + ' ' + element.addresses[0].postalCode;
-      let parksData = new Park(name, address, fees, description, url);
+      new Park(name, address, fees, description, url);
 
     });
     response.send(allArr);
@@ -60,37 +59,39 @@ function Park(name,address,fees,description,url){
 }
 
 
-let myLocalLocations ={};
 let lat;
 let lon;
 function handleLocation(request, response) {
   let city = request.query.city;
-  if (myLocalLocations[city]) {
-    response.send(myLocalLocations[city]);
-  } else {
-    let key = process.env.GEO_API_KEY;
-    const url = `https://us1.locationiq.com/v1/search.php?key=${key}&q=${city}&format=json`;
-    superagent.get(url).then(res=> {
-      const locationData = res.body[0];
-      const location = new Location(city, locationData);
-      myLocalLocations[city] = location;
-      lat=locationData.lat;
-      lon=locationData.lon;
-    //   response.send(location);
-      let SQL = 'INSERT INTO locations (city, location) VALUES($1, $2) RETURNING *';
-      console.log(SQL);
-      let values = [city, location];
-      client.query(SQL, values).then(result=> {
-        console.log(result.rows);
-        response.send(result.rows);
-    });
+  const SQL ='SELECT * FROM location where search_query=$1'
 
+  client.query(SQL, [city]).then(result=> {
+    if (result.rowCount>0) {
+      console.log('here from DB', result.rows[0]);
+      response.send(result.rows[0]);
+    } else {
+      let key = process.env.GEO_API_KEY;
+      const url = `https://us1.locationiq.com/v1/search.php?key=${key}&q=${city}&format=json`;
+      superagent.get(url).then(res=> {
+        const locationData = res.body[0];
+        const location = new Location(city, locationData);
+        console.log(location);
+        lat=locationData.lat;
+        lon=locationData.lon;
+        const SQL = 'INSERT INTO location (search_query, formatted_query, latitude, longitude) VALUES($1, $2, $3, $4) RETURNING *';
+        let values = [city, locationData.display_name, locationData.lat, locationData.lon];
+        client.query(SQL, values).then(result=> {
+          console.log('here from API', location);
+          response.send(location);
+        });
+              }).catch((err)=> {
+        console.log('ERROR IN LOCATION API');
+        console.log(err)
+      });
+    }
+});
 
-    }).catch((err)=> {
-      console.log('ERROR IN LOCATION API');
-      console.log(err)
-    });
-  }
+  
 }
 function Location(city, geoData) {
   this.search_query = city;
@@ -128,5 +129,8 @@ function handleWeather(request, response) {
 
 
 
+client.connect().then(
+  app.listen(process.env.PORT, ()=> console.log(`App is running on Server on port: ${PORT}`))
+);
 
-app.listen(process.env.PORT, ()=> console.log(`App is running on Server on port: ${PORT}`))
+app.use(cors());
